@@ -1,97 +1,173 @@
-#### 代码框架
-
 import pygame
 
+
 class Dinosaur(pygame.sprite.Sprite):
-    """恐龙角色类"""
-    
-    def __init__(self, imagepaths, position=(40, 535), size=[(132, 141), (177, 141)], **kwargs):
-        """
-        初始化恐龙角色       
-        Args:
-            imagepaths (list): 恐龙图片路径列表 [正常状态, 下蹲状态]
-            position (tuple): 恐龙在屏幕上的初始位置
-            size (list): 恐龙图片的缩放尺寸 [正常尺寸, 下蹲尺寸]
-        """
+    """Dinosaur player class"""
+
+    def __init__(
+        self,
+        imagepaths,
+        position=(40, 1100),
+        size=[(132, 141), (177, 141)],
+        **kwargs
+    ):
 
         pygame.sprite.Sprite.__init__(self)
-        
-        # 加载恐龙的所有动画帧图片
+
+        # Load animation frames
         self.images = []
-        # 提示：正常状态有5帧动画，下蹲状态有2帧动画
+
+        # Normal running frames
         image = pygame.image.load(imagepaths[0])
         for i in range(5):
-            self.images.append(pygame.transform.scale(image.subsurface((i * 44, 0), (44, 47)), size[0]))
+            self.images.append(
+                pygame.transform.scale(
+                    image.subsurface((i * 44, 0), (44, 47)),
+                    size[0]
+                )
+            )
+
+        # Ducking frames
         image = pygame.image.load(imagepaths[1])
         for i in range(2):
-            self.images.append(pygame.transform.scale(image.subsurface((i * 59, 0), (59, 47)), size[1]))
+            self.images.append(
+                pygame.transform.scale(
+                    image.subsurface((i * 59, 0), (59, 47)),
+                    size[1]
+                )
+            )
 
-        # TODO: 设置恐龙的初始图片和位置
+        # Initial image
         self.image_idx = 0
         self.image = self.images[self.image_idx]
+
+        # Position
         self.rect = self.image.get_rect()
         self.rect.left, self.rect.bottom = position
+
+        # Collision mask
         self.mask = pygame.mask.from_surface(self.image)
-        
-        # 恐龙的物理属性
+
+        # Physics
         self.init_position = position
-        self.refresh_rate = 5  # 动画刷新频率
+        self.refresh_rate = 5
         self.refresh_counter = 0
-        self.speed = 20  # 跳跃初始速度
-        self.gravity = 0.7  # 重力加速度
+
+        self.speed = 20
+        self.gravity = 0.7
+
+        # State flags
         self.is_jumping = False
         self.is_ducking = False
         self.is_dead = False
-        self.movement = [0, 0]  # [水平移动, 垂直移动]
+
+        # Movement [x, y]
+        self.movement = [0, 0]
 
     def jump(self, sounds):
-        """
-        恐龙跳跃方法      
-        Args:
-            sounds (dict): 音效字典
-        """
-        # TODO: 实现跳跃逻辑# 提示：检查是否已经在跳跃或死亡状态，播放跳跃音效，设置垂直移动速度
-        pass
-    
+        """Make dinosaur jump"""
+
+        # Cannot jump twice
+        if self.is_dead:
+            return
+
+        # Play sound
+        sounds['jump'].play()
+
+        # Start jumping
+        self.is_jumping = True
+        self.movement[1] = -self.speed
+
     def duck(self):
-        """恐龙下蹲方法"""
-        # TODO: 实现下蹲逻辑# 提示：检查是否在跳跃或死亡状态，设置下蹲标志 
-        pass
-    
+        """Start ducking"""
+
+        # Duck only on ground
+        if not self.is_jumping and not self.is_dead:
+            self.is_ducking = True
+
     def unduck(self):
-        """恐龙停止下蹲方法"""
-        # TODO: 取消下蹲状态
-        pass
-    
+        """Stop ducking"""
+
+        self.is_ducking = False
+
     def die(self, sounds):
-        """
-        恐龙死亡方法        
-        Args:
-            sounds (dict): 音效字典
-        """
-        # TODO: 实现死亡逻辑
-        # 提示：播放死亡音效，设置死亡标志
-        pass
-    
+        """Set death state"""
+
+        # Play death sound
+        sounds['die'].play()
+
+        # Set dead state
+        self.is_dead = True
+
     def draw(self, screen):
-        """
-        在屏幕上绘制恐龙
-        
-        Args:
-            screen: Pygame屏幕对象
-        """
-        # TODO: 将恐龙图片绘制到屏幕上
-        pass
-    
+        """Draw dinosaur"""
+
+        screen.blit(self.image, self.rect)
+
     def loadImage(self):
-        """加载当前帧的图片并更新碰撞遮罩"""
-        # TODO: 根据当前图片索引加载图片，更新rect和mask
-        pass
-    
+        """Update image and mask"""
+
+        # Save current position
+        left = self.rect.left
+        bottom = self.rect.bottom
+
+        # Update image
+        self.image = self.images[self.image_idx]
+
+        # Update rect
+        self.rect = self.image.get_rect()
+        self.rect.left = left
+        self.rect.bottom = bottom
+
+        # Update mask
+        self.mask = pygame.mask.from_surface(self.image)
+
     def update(self):
-        """更新恐龙状态（每帧调用）"""
-        # TODO: 实现恐龙状态更新逻辑
-        # 包括：死亡状态、跳跃物理、下蹲动画、正常跑步动画
-        pass
+        """Update dinosaur state"""
 
+        # Dead state
+        if self.is_dead:
 
+            self.image_idx = 4
+
+        # Jumping state
+        elif self.is_jumping:
+
+            # Apply gravity
+            self.movement[1] += self.gravity
+            self.rect.top += self.movement[1]
+
+            # Landing
+            if self.rect.bottom >= self.init_position[1]:
+                self.rect.bottom = self.init_position[1]
+                self.is_jumping = False
+                self.movement[1] = 0
+
+            self.image_idx = 0
+
+        # Ducking state
+        elif self.is_ducking:
+
+            # Duck animation
+            if self.refresh_counter % self.refresh_rate == 0:
+
+                if self.image_idx == 5:
+                    self.image_idx = 6
+                else:
+                    self.image_idx = 5
+
+        # Running state
+        else:
+
+            # Running animation
+            if self.refresh_counter % self.refresh_rate == 0:
+                self.image_idx += 1
+
+                if self.image_idx >= 4:
+                    self.image_idx = 0
+
+        # Update frame counter
+        self.refresh_counter += 1
+
+        # Load current frame
+        self.loadImage()

@@ -1,79 +1,124 @@
-#### 代码框架
 import pygame
+import random
+import pickle
+import os
 
 class Ground(pygame.sprite.Sprite):
-    """地面类"""    
-    def __init__(self, imagepath, position, **kwargs):
-        """
-        初始化地面        
-        Args:
-            imagepath (str): 地面图片路径
-            position (tuple): 地面位置
-        """
-        pygame.sprite.Sprite.__init__(self)       
-        # TODO: 创建两个地面图片实现无限滚动
-        # 提示：使用两个rect来实现无缝连接
-        self.speed = -10  # 地面移动速度
+    """Infinite scrolling ground"""
+
+    def __init__(self, imagepath, position, speed=-10):
+        super().__init__()
+
+        self.image = pygame.image.load(imagepath).convert_alpha()
+
+        self.rect_1 = self.image.get_rect()
+        self.rect_2 = self.image.get_rect()
+
+        self.rect_1.left, self.rect_1.top = position
+        self.rect_2.left = self.rect_1.right
+        self.rect_2.top = position[1]
+
+        self.speed = speed
 
     def update(self):
-        """更新地面位置实现滚动效果"""
-        # TODO: 实现地面无限滚动逻辑
-        pass
-    
+        self.rect_1.left += self.speed
+        self.rect_2.left += self.speed
+
+        # loop scrolling
+        if self.rect_1.right <= 0:
+            self.rect_1.left = self.rect_2.right
+
+        if self.rect_2.right <= 0:
+            self.rect_2.left = self.rect_1.right
+
     def draw(self, screen):
-        """绘制地面到屏幕"""
-        # TODO: 绘制两个地面图片
-        pass
+        screen.blit(self.image, self.rect_1)
+        screen.blit(self.image, self.rect_2)
+
 
 class Cloud(pygame.sprite.Sprite):
-    """云朵类"""
-    
-    def __init__(self, imagepath, position, **kwargs):
-        """
-        初始化云朵
-        
-        Args:
-            imagepath (str): 云朵图片路径
-            position (tuple): 云朵位置
-        """
+    """Floating cloud with configurable size and speed"""
 
-        pygame.sprite.Sprite.__init__(self)
-        
-        # TODO: 加载和缩放云朵图片
-        self.speed = -1  # 云朵移动速度（比地面慢）
-    
-    def draw(self, screen):
-        """绘制云朵到屏幕"""
-        # TODO: 实现绘制逻辑
-        pass
-    
+    def __init__(
+        self,
+        imagepath,
+        position,
+        scale=(92, 54),
+        speed_range=(-2, -1),
+    ):
+        super().__init__()
+
+        image = pygame.image.load(imagepath).convert_alpha()
+
+        # scalable cloud size
+        self.image = pygame.transform.smoothscale(image, scale)
+
+        self.rect = self.image.get_rect()
+        self.rect.left, self.rect.top = position
+
+        # random speed for natural movement
+        self.speed = random.randint(speed_range[0], speed_range[1])
+
     def update(self):
-        """更新云朵位置"""
-        # TODO: 实现移动逻辑，移出屏幕后自动销毁
-        pass
+        self.rect.left += self.speed
+
+        # remove when off screen
+        if self.rect.right < 0:
+            self.kill()
+
+    def draw(self, screen):
+        screen.blit(self.image, self.rect)
+
+
+
+
 
 class Scoreboard(pygame.sprite.Sprite):
-    """计分板类"""
-    
-    def __init__(self, score, fontpath, position, is_highest=False):
-        """
-        初始化计分板
-        
-        Args:
-            score (int): 要显示的分数
-            fontpath (str): 字体文件路径
-            position (tuple): 计分板位置
-            is_highest (bool): 是否为最高分显示
-        """
-        pygame.sprite.Sprite.__init__(self)
-        
-        # TODO: 创建分数文本渲染
-        # 提示：最高分前面要加"HI"前缀，分数要补零到5位
-        pass
-    
+    """Score display with optional persistent highest score"""
+
+    def __init__(self, fontpath, position, is_highest=False, save_file='score.pkl'):
+        super().__init__()
+
+        self.font = pygame.font.Font(fontpath, 32)
+        self.position = position
+        self.is_highest = is_highest
+        self.save_file = save_file
+
+        self.score = 0
+        self.image = None
+        self.rect = None
+
+        if self.is_highest:
+            self.score = self.load_score()
+
+        self.update_score(self.score)
+
+    def load_score(self):
+        if not os.path.exists(self.save_file):
+            return 0
+        try:
+            with open(self.save_file, 'rb') as f:
+                return pickle.load(f)
+        except:
+            return 0
+
+    def save_score(self, score):
+        try:
+            with open(self.save_file, 'wb') as f:
+                pickle.dump(score, f)
+        except:
+            pass
+
+    def update_score(self, score):
+        self.score = score
+
+        text = str(score).zfill(5)
+        if self.is_highest:
+            text = "HI " + text
+
+        self.image = self.font.render(text, True, (83, 83, 83))
+        self.rect = self.image.get_rect()
+        self.rect.topleft = self.position
+
     def draw(self, screen):
-        """绘制计分板到屏幕"""
-        # TODO: 实现绘制逻辑
-        pass
-
-
+        screen.blit(self.image, self.rect)

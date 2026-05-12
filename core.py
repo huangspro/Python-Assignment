@@ -1,7 +1,7 @@
 import os
 
 # Game window settings
-SCREENSIZE = (1200, 600)
+SCREENSIZE = (1600, 1200)
 FPS = 60
 
 # Audio paths

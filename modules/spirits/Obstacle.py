@@ -1,89 +1,118 @@
-#### 代码框架
-
 import random
 import pygame
 
+
 class Cactus(pygame.sprite.Sprite):
-    """仙人掌障碍物类"""
-    
-    def __init__(self, imagepaths, position=(1200, 545), sizes=[(204, 204), (153, 114)], **kwargs):
+    """Cactus obstacle"""
 
-        
-
+    def __init__(self, imagepaths, position=(1200, 1100),
+                 sizes=[(204, 204), (153, 114)], **kwargs):
         """
-        初始化仙人掌障碍物
+        Initialize cactus
         Args:
-            imagepaths (list): 仙人掌图片路径列表
-            position (tuple): 初始位置
-            sizes (list): 不同类型仙人掌的尺寸
+            imagepaths (list): cactus image paths
+            position (tuple): start position
+            sizes (list): cactus sizes
         """
         pygame.sprite.Sprite.__init__(self)
-        
-        # TODO: 加载不同类型的仙人掌图片
+
+        # Load cactus images
         self.images = []
-        # 提示：大仙人掌有3种变体，小仙人掌有2种变体
-        
-        # TODO: 随机选择一种仙人掌类型
+
+        # Big cactus: 3 variants
+        big_cactus = pygame.image.load(imagepaths[0]).convert_alpha()
+        for i in range(3):
+            image = pygame.Surface((68, 68), pygame.SRCALPHA)
+            image.blit(big_cactus, (0, 0), (i * 68, 0, 68, 68))
+            image = pygame.transform.scale(image, sizes[0])
+            self.images.append(image)
+
+        # Small cactus: 2 variants
+        small_cactus = pygame.image.load(imagepaths[1]).convert_alpha()
+        for i in range(2):
+            image = pygame.Surface((68, 68), pygame.SRCALPHA)
+            image.blit(small_cactus, (0, 0), (i * 68, 0, 68, 68))
+            image = pygame.transform.scale(image, sizes[1])
+            self.images.append(image)
+
+        # Random cactus
         self.image = random.choice(self.images)
         self.rect = self.image.get_rect()
         self.rect.left, self.rect.bottom = position
         self.mask = pygame.mask.from_surface(self.image)
-        
-        self.speed = -10  # 向左移动速度
-    
+
+        self.speed = -10
+
     def draw(self, screen):
-        """绘制仙人掌到屏幕"""
-        # TODO: 实现绘制逻辑
-        pass
-    
+        """Draw cactus"""
+        screen.blit(self.image, self.rect)
+
     def update(self):
-        """更新仙人掌位置"""
-        # TODO: 实现移动逻辑，移出屏幕后自动销毁
-        pass
+        """Move cactus"""
+        self.rect.left += self.speed
+
+        # Remove when out of screen
+        if self.rect.right < 0:
+            self.kill()
+
 
 class Ptera(pygame.sprite.Sprite):
-    """翼龙障碍物类"""
-    
-    def __init__(self, imagepath, position, size=(138, 126), **kwargs):
-        """
-        初始化翼龙障碍物
-        
+    """Flying obstacle with stable animation"""
 
-        Args:
-            imagepath (str): 翼龙图片路径
-            position (tuple): 初始位置
-            size (tuple): 翼龙尺寸
-        """
-        pygame.sprite.Sprite.__init__(self)
-        
-        # TODO: 加载翼龙的飞行动画帧
+    def __init__(self, imagepath, position, size=(138, 126)):
+        super().__init__()
+
         self.images = []
-        # 提示：翼龙有2帧飞行动画
-        
+
+        sheet = pygame.image.load(imagepath).convert_alpha()
+
+        # split frames
+        for i in range(2):
+            frame = pygame.Surface((46, 41), pygame.SRCALPHA)
+            frame.blit(sheet, (0, 0), (i * 46, 0, 46, 41))
+            frame = pygame.transform.scale(frame, size)
+            self.images.append(frame)
+
         self.image_idx = 0
-        self.image = self.images[self.image_idx]
+        self.image = self.images[0]
+
+        # anchor position (IMPORTANT)
+        self.x = position[0]
+        self.y = position[1]
+
         self.rect = self.image.get_rect()
-        self.rect.left, self.rect.centery = position
+        self.rect.left = self.x
+        self.rect.centery = self.y
+
         self.mask = pygame.mask.from_surface(self.image)
-        
-        self.speed = -10  # 向左移动速度
-        self.refresh_rate = 10  # 动画刷新频率
 
-        self.refresh_counter = 0
-    
-    def draw(self, screen):
-        """绘制翼龙到屏幕"""
-        # TODO: 实现绘制逻辑
-        pass
-    
+        self.speed = -10
+
+        self.refresh_rate = 10
+        self.counter = 0
+
     def update(self):
-        """更新翼龙位置和动画"""
-        # TODO: 实现飞行动画和移动逻辑
-        pass
-    
-    def loadImage(self):
-        """加载当前帧的翼龙图片"""
-        # TODO: 更新翼龙的当前动画帧
-        pass
+        # move
+        self.x += self.speed
 
+        # animation
+        self.counter += 1
+        if self.counter >= self.refresh_rate:
+            self.counter = 0
+            self.image_idx = (self.image_idx + 1) % len(self.images)
+            self.image = self.images[self.image_idx]
 
+            # IMPORTANT: refresh mask when image changes
+            self.mask = pygame.mask.from_surface(self.image)
+
+        # update rect from anchor
+        self.rect = self.image.get_rect()
+        self.rect.left = self.x
+        self.rect.centery = self.y
+
+        # remove off screen
+        if self.rect.right < 0:
+            self.kill()
+
+    def draw(self, screen):
+        screen.blit(self.image, self.rect)
