@@ -136,6 +136,7 @@ def main(highest_score):
     while True:
         #RL logic=================================================================================================
         epoch+=1
+        print(epoch)
         if(epoch%20==0):
             torch.save(Q_model, "model.pth")
         
