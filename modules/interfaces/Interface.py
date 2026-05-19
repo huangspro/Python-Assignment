@@ -54,7 +54,7 @@ def GameStartInterface(screen, sounds, cfg):
 
     # Main loop
     while True:
-
+        return True
         # Event handling
         for event in pygame.event.get():
 
@@ -145,7 +145,7 @@ def GameEndInterface(screen, cfg):
 
     # Main loop
     while True:
-
+        return True
         # Event handling
         for event in pygame.event.get():
 

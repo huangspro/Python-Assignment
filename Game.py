@@ -3,7 +3,6 @@ import sys
 import time
 import random
 import pygame
-import sqlite3
 import pickle
 import random
 import os
@@ -15,26 +14,25 @@ from modules.spirits.Dinosaur import Dinosaur
 from modules.spirits.Obstacle import Cactus, Ptera
 from modules.spirits.Scene import Ground, Cloud, Scoreboard
 
+#os.environ['SDL_VIDEODRIVER'] = 'dummy'
+
 # RL implemention==========================================================================================================
 greedy = 0.2
-learning_ratio = 0.0001
+learning_ratio = 0.001
 discounted = 0.99
 device = torch.device('cpu')
 
 class Q(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.linear1 = torch.nn.Linear(20+1, 14)
+        self.linear1 = torch.nn.Linear(5+1, 14)
         self.linear2 = torch.nn.Linear(14, 28)
-        self.linear3 = torch.nn.Linear(28, 14)
-        self.linear4 = torch.nn.Linear(14, 1)
+        self.linear3 = torch.nn.Linear(28, 1)
     def forward(self, state, action):  
         action = torch.tensor([action], dtype=torch.float32).to(device)
-        print(state.shape)
         x = torch.nn.functional.relu(self.linear1(torch.cat([state, action])))
         x = torch.nn.functional.relu(self.linear2(x))
-        x = torch.nn.functional.relu(self.linear3(x))
-        x = self.linear4(x)
+        x = self.linear3(x)
         return x
 
 def pack(dino, cactus_group, ptera_group):
@@ -42,28 +40,26 @@ def pack(dino, cactus_group, ptera_group):
     def get_corners(sprite):
         r = sprite.rect
         x, y = r.left, r.top
-        w, h = r.width, r.height
         return [
-            x, y,
-            x + w, y + h,
+            x, y
         ]
 
     features = []
-    features.extend(get_corners(dino))
+    features.extend([dino.rect.top])
 
     cactus_list = sorted(cactus_group, key=lambda s: s.rect.x)
     if len(cactus_list)==2:
         for c in sorted(cactus_group, key=lambda s: s.rect.x)[:2]:
-            features.extend(get_corners(c))
+            features.extend([c.rect.x])
     else:
-        features.extend([0.0] * 4 if len(cactus_list)==1 else [0.0]*8)   # padding
+        features.extend([0.0]*2)   # padding
         
     ptera_list = sorted(ptera_group, key=lambda s: s.rect.x)
     if len(ptera_list)==2:
         for c in sorted(ptera_group, key=lambda s: s.rect.x)[:2]:
-            features.extend(get_corners(c))
+            features.extend([c.rect.top])
     else:
-        features.extend([0.0] * 4 if len(ptera_list)==1 else [0.0]*8)   # padding
+        features.extend([0.0]*2)   # padding
         
     return torch.tensor(features, dtype=torch.float32)
 
@@ -76,7 +72,7 @@ def take_action(s):
             output.append(Q_model(s, action).detach().squeeze())
         return actions[output.index(max(output))]   
     else:
-        return random.randint(0, 3)
+        return random.randint(0, 1)
 
 def find_max(s):
     actions = [0,1]
@@ -85,8 +81,8 @@ def find_max(s):
         output.append(Q_model(s, action).detach().squeeze())
     return max(output)
     
-Q_model = Q().to(device)
-#Q_model = torch.load("model.pth", weights_only=False).to(device)
+#Q_model = Q().to(device)
+Q_model = torch.load("model.pth", weights_only=False).to(device)
 optimizer = torch.optim.Adam(Q_model.parameters(), lr=learning_ratio)
 #==========================================================================================================
 def main(highest_score):
@@ -132,25 +128,28 @@ def main(highest_score):
 
     high_score_board.update_score(highest_score)
 
-    epoch = 0
+    epoch = 1
     while True:
         #RL logic=================================================================================================
         epoch+=1
-        print(epoch)
-        if(epoch%20==0):
+        global greedy
+        if(epoch%100==0):
             torch.save(Q_model, "model.pth")
-        
-        action = take_action(pack(dino,cactus_group, ptera_group))
-        old_q = Q_model(pack(dino, cactus_group, ptera_group), action)
-        if(action==1) and dino.rect.y > core.SCREENSIZE[1] // 2.5:
+            print(score)
+            greedy-=0.0001
+        observation = pack(dino,cactus_group, ptera_group)
+        action = take_action(observation)
+        old_q = Q_model(observation, action)
+        if(action==1) and dino.rect.y > core.SCREENSIZE[1] //1.5:
             dino.jump(sounds)
-            
+            score-=2
         with torch.no_grad():
             target = score + discounted * find_max(pack(dino, cactus_group, ptera_group))
         loss = (old_q - target)**2
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        
         
         #=================================================================================================
     
@@ -162,7 +161,7 @@ def main(highest_score):
 
             if event.type == pygame.KEYDOWN:
                 if event.key in (pygame.K_SPACE, pygame.K_UP):
-                    if dino.rect.y > core.SCREENSIZE[1] // 2.5:
+                    if dino.rect.y > core.SCREENSIZE[1] // 1.2:
                         dino.jump(sounds)
                 elif event.key == pygame.K_DOWN:
                     dino.duck()
@@ -207,7 +206,7 @@ def main(highest_score):
             ptera_group.add(
                 Ptera(
                     core.IMAGE_PATHS['ptera'],
-                    position=(spawn_x, random.choice([core.SCREENSIZE[1]*0.7, core.SCREENSIZE[1]*0.6, core.SCREENSIZE[1]*0.5]))
+                    position=(spawn_x, random.choice([core.SCREENSIZE[1]*0.5, core.SCREENSIZE[1]*0.4, core.SCREENSIZE[1]*0.3]))
                 )
             )
         while len(ptera_group) > 2:
@@ -239,6 +238,7 @@ def main(highest_score):
         # Update scoreboards
         score_board.update_score(score)
         highest_score = max(highest_score, score)
+        score_board.save_score(highest_score)
         high_score_board.update_score(highest_score)
 
         # Collision detection
@@ -265,36 +265,16 @@ def main(highest_score):
         score_board.draw(screen)
 
         pygame.display.update()
-        clock.tick(core.FPS)
+        clock.tick(core.FPS) # core.FPS
 
         # Game over logic
         if dino.is_dead:
-            c.execute(
-                "INSERT INTO record VALUES (?, ?)",
-                (int(time.time()), score)
-            )
-            highest_score = max(highest_score, score)
             break
 
     return GameEndInterface(screen, core), highest_score
     
 if __name__ == '__main__':
-
-    conn = sqlite3.connect('history.db')
-    c = conn.cursor()
-
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS record (
-            unix_timestamp INT PRIMARY KEY,
-            score SMALLINT NOT NULL
-        );
-    """)
-
-    c.execute("SELECT MAX(score) FROM record;")
-    row = c.fetchone()
-
-    highest_score = row[0] if row and row[0] is not None else 0
-
+    highest_score=1
     while True:
         flag, highest_score = main(highest_score)
         if not flag:
